@@ -4,6 +4,7 @@
     "license": "MIT",
     "keywords": ["coverage code php"],
     "version": "1.0.0",
+    "minimum-stability": "dev",
     "authors": [
         {
             "name": "yezuozuo",
