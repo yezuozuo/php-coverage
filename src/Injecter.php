@@ -46,7 +46,7 @@ class Injecter {
 
         if (function_exists('xdebug_start_code_coverage')) {
             xdebug_start_code_coverage();
-            register_shutdown_function("Woojean\\PHPCoverage\\Injecter::Gather", $logDir, $ignoreFile);
+            register_shutdown_function("Yezuozuo\\Coverage\\Injecter::gather", $logDir, $ignoreFile);
         } else {
             echo('PHPCoverage config error ：xdebug unreachable !');
             exit(0);
