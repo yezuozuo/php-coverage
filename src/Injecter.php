@@ -24,6 +24,7 @@ class Injecter {
      * $logDir 覆盖率日志目录
      * $ignoreFiles 需要忽略的目录、文件列表
      * $repeat 是否累加测试（累加测试期间，代码文件不应该变动，否则影响覆盖率行的判断）
+     *
      * @param array $config
      */
     public static function Inject($config = []) {
@@ -32,12 +33,13 @@ class Injecter {
         $isRepeat   = isset($config['is_repeat']) ? $config['is_repeat'] : false;
 
         if (!is_writable($logDir)) {
-            die('php-coverage config error ：log dir "<u>' . $logDir . '</u>" can not be null and must be writable !');
+            echo('php-coverage config error ：log dir "<u>' . $logDir . '</u>" can not be null and must be writable !');
+            exit(0);
         }
 
         if (!empty($ignoreFile) && !file_exists($ignoreFile)) {
-            die('php-coverage config error ：ignore file "<u>' . $ignoreFile . '</u>" is not exists !');
-
+            echo('php-coverage config error ：ignore file "<u>' . $ignoreFile . '</u>" is not exists !');
+            exit(0);
         }
 
         if (!$isRepeat) {
@@ -70,7 +72,7 @@ class Injecter {
      * @param $ignoreFile
      */
     private static function reporter($logDir, $ignoreFile) {
-        require_once 'Reporter.php'; // !
+        require_once 'Reporter.php';
         $reporter = new Reporter($logDir, $ignoreFile);
         $reporter->report();
     }

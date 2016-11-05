@@ -48,10 +48,12 @@ class Reporter {
     protected function isIgnore($srcPath) {
         $ignores = require($this->ignoreFile);
 
-        foreach ($ignores as $key => $value) {
-            $count = substr_count($srcPath, $value);
-            if ($count > 0) {
-                return true;
+        if (is_array($ignores)) {
+            foreach ($ignores as $key => $value) {
+                $count = substr_count($srcPath, $value);
+                if ($count > 0) {
+                    return true;
+                }
             }
         }
 
@@ -69,15 +71,12 @@ class Reporter {
 
         $sumFiles     = 0;
         $sumLines     = 0;
-        $sumExcutable = 0;
         $sumCovered   = 0;
-        $sumCoverRate = 0;
 
         foreach ($allCoverageData as $file => $lines) {
             if ($this->isIgnore($file)) {
                 continue;
             }
-
 
             $fileItem   = $this->TEMPLATE_NAV_ITEM;
             $reportPath = str_replace('/', '-', $file);
@@ -85,7 +84,6 @@ class Reporter {
 
             $ret = $this->parseSrcFile($reportPath, $file, $lines);
 
-            $fileStyle    = '';
             $coverageRate = floatval($ret['coverage_rate']);
             if ($coverageRate <= 0.2) {
                 $fileStyle = 'coverage_5';
@@ -106,7 +104,7 @@ class Reporter {
             }
 
 
-            $fileCoverage = strval($coverageRate * 100) . '% (' . $ret['lines_covered'] . '/' . $ret['lines_excutable'] . ')';
+            $fileCoverage = strval($coverageRate * 100) . '% (' . $ret['lines_covered'] . '/' . $ret['lines_all'] . ')';
 
             $fileItem = str_replace('%FILE_PATH%', $reportPath, $fileItem);
             $fileItem = str_replace('%FILE_NAME%', $file, $fileItem);
@@ -117,18 +115,16 @@ class Reporter {
 
             $sumFiles += 1;
             $sumLines += intval($ret['lines_all']);
-            $sumExcutable += intval($ret['lines_excutable']);
             $sumCovered += intval($ret['lines_covered']);
         }
-        $sumCoverRate = strval(round(($sumCovered / $sumExcutable), 4) * 100) . '%';
+        $sumCoverRate = strval(round(($sumCovered / $sumLines), 4) * 100) . '%';
 
         $html = str_replace('%FILE_ITEMS%', $items, $html);
 
 
         $html = str_replace('%SUM_FILES%', $sumFiles, $html);
         $html = str_replace('%SUM_LINES%', $sumLines, $html);
-        $html = str_replace('%SUM_EXCUTABLE%', $sumExcutable, $html);
-        $html = str_replace('%SUM_COVERED%', $sumCovered, $html);
+        $html = str_replace('%SUM_EXCUTABLE%', $sumCovered, $html);
         $html = str_replace('%SUM_COVERRATE%', $sumCoverRate, $html);
 
         file_put_contents($this->logDir . DIRECTORY_SEPARATOR . 'index.html', $html);
@@ -141,10 +137,8 @@ class Reporter {
      * @return array
      */
     protected function parseSrcFile($reportPath, $srcPath, $lines) {
-
         $result = [
             'lines_all'       => 0,
-            'lines_excutable' => 0,
             'lines_covered'   => 0,
             'coverage_rate'   => 0
         ];
@@ -153,31 +147,22 @@ class Reporter {
         $src        = file_get_contents($srcPath);
         $arr        = explode(PHP_EOL, $src);
 
-        $html           = $this->TEMPLATE_FILR_REPORT;
-        $allLines       = count($arr) - 2;
-        $excutableLines = 0;
+        $html           = $this->TEMPLATE_FILE_REPORT;
+        $allLines       = count($arr);
         $coverLines     = count($coverIndex);
 
         $str = '';
         foreach ($arr as $key => $value) {
-            if ($key < 1) {
-                continue;
-            }
-            $code = preg_replace('/\s+/', '&nbsp;', $value);
+            $code = str_replace("    ", '&nbsp;&nbsp;&nbsp;&nbsp;', $value);
+            $code = str_replace(" ", '&nbsp;', $code);
 
-            if (!$this->is_line_excutable($value)) {
-                if (in_array($key + 1, $coverIndex)) {
-                    $coverLines -= 1; // !!!
-                }
+            if (!$this->is_line_excutable($value)) { //不可执行的
                 $str .= '<tr class="e"><td class="line_num">' . $key . '</td><td >' . $code . '</td></tr>';
-            } elseif (in_array($key + 1, $coverIndex)) {
+            } elseif (in_array($key + 1, $coverIndex)) { // 执行的
                 $str .= '<tr class="c"><td class="line_num">' . $key . '</td><td>' . $code . '</td></tr>';
-                $excutableLines += 1;
-            } else {
+            } else { // 未执行的
                 $str .= '<tr class="u"><td class="line_num">' . $key . '</td><td >' . $code . '</td></tr>';
-                $excutableLines += 1;
             }
-
         }
         $str  = '<table>' . $str . '</table>';
         $html = str_replace('$TABLE$', $str, $html);
@@ -189,15 +174,9 @@ class Reporter {
 
         file_put_contents($reportPath, $html);
 
-
         $result['lines_all']       = $allLines;
-        $result['lines_excutable'] = $excutableLines;
         $result['lines_covered']   = $coverLines;
-        if (intval($excutableLines) > 0) {
-            $result['coverage_rate'] = round(floatval($coverLines) / floatval($excutableLines), 2);
-        } else {
-            $result['coverage_rate'] = '0';
-        }
+        $result['coverage_rate'] = round(floatval($coverLines) / floatval($allLines), 2);
 
         return $result;
     }
@@ -227,6 +206,11 @@ class Reporter {
         return true;
     }
 
+    /**
+     * 叠加测试
+     *
+     * @return array
+     */
     protected function mergeCoverages() {
         $allCoverageData = [];
         $coverageFiles   = $this->getCoverageFiles();
@@ -245,6 +229,9 @@ class Reporter {
         return $allCoverageData;
     }
 
+    /**
+     * @return array
+     */
     protected function getCoverageFiles() {
         $files = [];
         $dh    = opendir($this->logDir);
@@ -345,7 +332,6 @@ class Reporter {
 
 		html,body{
 			height: 100%;
-            font-family: "Microsoft YaHei" ! important;
 		}
 		
 		ul{  
@@ -357,8 +343,7 @@ class Reporter {
 		}  
 
 		li{
-			list-sytle-type:none;
-            height: 30px;
+            height: 60px;
             line-height: 30px;
             background: #CCFFCC;
 			font-size:0.8em;
@@ -386,13 +371,13 @@ class Reporter {
         li label{
 			width:70%;
             float:left;
-			height: 30px;
+			height: 60px;
             cursor:pointer;
         }
 		
 		li span{
 			width:25%;
-			height: 30px;
+			height: 60px;
             float:right;
             text-align: right;
         }
@@ -425,6 +410,7 @@ class Reporter {
         .sum span{
             color: red;
             margin-right: 50px;
+            height: 60px;
         }
 
         .sum a {
@@ -466,9 +452,7 @@ class Reporter {
         <label>执行总文件数：</label><span>%SUM_FILES%</span>
         <label>代码总行数：</label><span>%SUM_LINES%</span>
         <label>可执行代码行数：</label><span>%SUM_EXCUTABLE%</span>
-        <label>覆盖可执行代码行数：</label><span>%SUM_COVERED%</span>
         <label>可执行代码覆盖率：</label><span>%SUM_COVERRATE%</span>
-        <a href="https://github.com/woojean/PHPCoverage">Generated by PHPCoverage</a>
     </div>
     <div class="navgation" id="navgation">
         <div class="filelist">
@@ -488,30 +472,34 @@ class Reporter {
         btns[i].onclick = function(){
             for (var i = 0; i < btns.length; i++) {
                 btns[i].className = "";
-            };
+            }
             this.className = "select";
             tabCon.src = this.href;
             return false;
         }
-    };
+    }
 </script>
 </html>';
 
-    private $TEMPLATE_FILR_REPORT = '
+    // e 不可执行的
+    // c 执行的
+    // u 未执行的
+    // k 关键词
+    private $TEMPLATE_FILE_REPORT = '
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <style>
 .e{
-	background-color:#F0F0F0;
+	background-color:#fff;
 }
 
 .c{
-	background-color:#B4EEB4;
+	background-color:#dff0d8;
 }
 
 .u{
-	background-color:#FFFAF0;
+	background-color:#fcf8e3;
 }
 
 .k{
@@ -522,11 +510,30 @@ class Reporter {
 .line_num{
 	font-size:0.8em;
 }
+#information {
+    margin-bottom: 100px;
+}
 
 </style>
 </head>
 <body>
-	$TABLE$
+    <code>
+        $TABLE$
+    </code>
+    <p id="information">
+        <span class="e">
+            <strong>不可执行</strong>
+        </span>
+        <span class="c">
+            <strong>执行的</strong>
+        </span>
+        <span class="u">
+            <strong>未执行的</strong>
+        </span>
+        <span class="k">
+            <strong>关键词</strong>
+        </span>
+    </p>
 </body>
 </html>
 ';
